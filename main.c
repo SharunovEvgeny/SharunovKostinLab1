@@ -129,14 +129,21 @@ void *threadFunc(void *arg) {
 }
 
 void simulateSystem() {
-    int i, t;
+    int i;
     FILE *fp = fopen("", "r");
     fp = fopen("output.txt", "w");
+    FILE *fpForPython = fopen("", "r");
+    fpForPython = fopen("outputForPython.csv", "w");
     int *thread_ids = (int *) malloc(NUM_THREADS * sizeof(int));
+    fprintf(fpForPython, "t");
+    for (i = 0; i < bodiesSize; i++) {
+        fprintf(fpForPython, ",x%d,y%d", i + 1, i + 1);
+    }
     pthread_cond_init(&cv, NULL);
     pthread_mutex_init(&mutex, NULL);
-    for (t = 0; t < timeSteps; t++) {
+    for (int t = 0; t < timeSteps; t++) {
         fprintf(fp, "\nCycle %d\n", t + 1);
+        fprintf(fpForPython, ",\n%d",t+1);
         for (i = 0; i < NUM_THREADS; i++) {
             thread_ids[i] = i;
             pthread_create(&threads[i], NULL, threadFunc, &thread_ids[i]);
@@ -150,9 +157,11 @@ void simulateSystem() {
         for (i = 0; i < bodiesSize; i++) {
             fprintf(fp, "Body %d : %lf\t%lf\t%lf\t%lf\n", i + 1, bodiesArr[i].x, bodiesArr[i].y, bodiesArr[i].vx,
                     bodiesArr[i].vy);
+            fprintf(fpForPython, ",%lf,%lf", bodiesArr[i].x, bodiesArr[i].y);
         }
 
     }
+    fprintf(fpForPython, ",");
     pthread_cond_destroy(&cv);
     pthread_mutex_destroy(&mutex);
     free(thread_ids);
