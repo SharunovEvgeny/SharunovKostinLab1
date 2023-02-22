@@ -2,9 +2,9 @@
 #include <stdio.h>
 #include <math.h>
 #include <pthread.h>
+#include <time.h>
 
 #define DT 0.05
-#define NUM_THREADS 8
 
 typedef struct {
     double x, y;
@@ -15,6 +15,8 @@ typedef struct Body {
     double x, y;
     double vx, vy;
 } Body;
+
+int numThreads = 4;
 
 int timeSteps;
 Body *bodiesArr;
@@ -36,7 +38,7 @@ void initiateSystem(char *fileName) {
     fscanf(fp, "%lf%d%d", &GravConstant, &bodiesSize, &timeSteps);
 
     bodiesArr = (Body *) malloc(bodiesSize * sizeof(Body));
-    threads = (pthread_t *) malloc(NUM_THREADS * sizeof(pthread_t));
+    threads = (pthread_t *) malloc(numThreads * sizeof(pthread_t));
     accelerations = (vector *) malloc(bodiesSize * sizeof(vector));
 
     for (i = 0; i < bodiesSize; i++) {
@@ -51,9 +53,9 @@ void initiateSystem(char *fileName) {
 void *computeAccelerationsThread(void *arg) {
     int i, j;
     int thread_id = *(int *) arg;
-    int bodies_per_thread = bodiesSize / NUM_THREADS;
+    int bodies_per_thread = bodiesSize / numThreads;
     int start_index = thread_id * bodies_per_thread;
-    int end_index = (thread_id == NUM_THREADS - 1) ? bodiesSize : start_index + bodies_per_thread;
+    int end_index = (thread_id == numThreads - 1) ? bodiesSize : start_index + bodies_per_thread;
 
     for (i = start_index; i < end_index; i++) {
         accelerations[i].x = 0;
@@ -75,9 +77,9 @@ void *computeAccelerationsThread(void *arg) {
 void *computeVelocitiesThread(void *arg) {
     int i;
     int thread_id = *(int *) arg;
-    int bodies_per_thread = bodiesSize / NUM_THREADS;
+    int bodies_per_thread = bodiesSize / numThreads;
     int start_index = thread_id * bodies_per_thread;
-    int end_index = (thread_id == NUM_THREADS - 1) ? bodiesSize : start_index + bodies_per_thread;
+    int end_index = (thread_id == numThreads - 1) ? bodiesSize : start_index + bodies_per_thread;
 
     for (i = start_index; i < end_index; i++) {
         bodiesArr[i].vx = bodiesArr[i].vx + DT * accelerations[i].x;
@@ -89,9 +91,9 @@ void *computeVelocitiesThread(void *arg) {
 void *computePositionsThread(void *arg) {
     int i;
     int thread_id = *(int *) arg;
-    int bodies_per_thread = bodiesSize / NUM_THREADS;
+    int bodies_per_thread = bodiesSize / numThreads;
     int start_index = thread_id * bodies_per_thread;
-    int end_index = (thread_id == NUM_THREADS - 1) ? bodiesSize : start_index + bodies_per_thread;
+    int end_index = (thread_id == numThreads - 1) ? bodiesSize : start_index + bodies_per_thread;
     for (i = start_index; i < end_index; i++) {
         bodiesArr[i].x = bodiesArr[i].x + DT * bodiesArr[i].vx;
         bodiesArr[i].y = bodiesArr[i].y + DT * bodiesArr[i].vy;
@@ -119,7 +121,7 @@ void *threadFunc(void *arg) {
     computeAccelerationsThread(arg);
     pthread_mutex_lock(&mutex);
     counter += 1;
-    while (counter != NUM_THREADS) {
+    while (counter != numThreads) {
         pthread_cond_wait(&cv, &mutex);
     }
     pthread_cond_broadcast(&cv);
@@ -134,7 +136,7 @@ void simulateSystem() {
     fp = fopen("output.txt", "w");
     FILE *fpForPython = fopen("", "r");
     fpForPython = fopen("outputForPython.csv", "w");
-    int *thread_ids = (int *) malloc(NUM_THREADS * sizeof(int));
+    int *thread_ids = (int *) malloc(numThreads * sizeof(int));
     fprintf(fpForPython, "t");
     for (i = 0; i < bodiesSize; i++) {
         fprintf(fpForPython, ",x%d,y%d", i + 1, i + 1);
@@ -143,13 +145,13 @@ void simulateSystem() {
     pthread_mutex_init(&mutex, NULL);
     for (int t = 0; t < timeSteps; t++) {
         fprintf(fp, "\nCycle %d\n", t + 1);
-        fprintf(fpForPython, ",\n%d",t+1);
-        for (i = 0; i < NUM_THREADS; i++) {
+        fprintf(fpForPython, ",\n%d", t + 1);
+        for (i = 0; i < numThreads; i++) {
             thread_ids[i] = i;
             pthread_create(&threads[i], NULL, threadFunc, &thread_ids[i]);
         }
 
-        for (i = 0; i < NUM_THREADS; i++) {
+        for (i = 0; i < numThreads; i++) {
             pthread_join(threads[i], NULL);
         }
         counter = 0;
@@ -169,10 +171,21 @@ void simulateSystem() {
 
 
 int main(int argc, char *argv[]) {
-    initiateSystem("c:/Users/evsharun/CLionProjects/untitled4/input.txt");
+    if(argc != 3) {
+        printf("Usage: %s <integer> <string>\n", argv[0]);
+        exit(1);
+    }
+    clock_t start, end;
+    double cpu_time_used;
+    start = clock();
+
+    numThreads = atoi(argv[1]);
+    initiateSystem(argv[2]);
     simulateSystem();
     free(bodiesArr);
     free(threads);
-
+    end = clock();
+    cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
+    printf("Time: %f seconds\n", cpu_time_used);
     return 0;
 }
