@@ -172,7 +172,7 @@ void simulateSystem() {
 
 int main(int argc, char *argv[]) {
     if(argc != 3) {
-        printf("Usage: %s <integer> <string>\n", argv[0]);
+        printf("Usage: %s <numThreads> <inputFilename>\n", argv[0]);
         exit(1);
     }
     clock_t start, end;
